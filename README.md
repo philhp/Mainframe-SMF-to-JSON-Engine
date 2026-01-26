@@ -80,3 +80,32 @@ The engine utilizes z/OS system macros to map binary structures:
 
 # Prerequisites
 z/OS Environment with HLASM compiler.
+
+SMF Data: A dumped SMF dataset.
+
+# Quick Start
+Follow these steps to deploy and run the SMF-to-JSON engine on your system.
+
+1. Configuration
+
+   Open the JCL located in jcl/JCLASM.jcl and customize the SET symbols at the top of the job:
+   ```jcl
+   // SET SRC='USER.SRC'         <-- Source PDS (.asm files)
+   // SET SMFIN='USER.SMF.FILE'  <-- INPUT: Your raw SMF dump file   
+   // SET OBJ='USER.OBJ'         <-- OUTPUT : intermediate object modules
+   // SET LOAD='USER.LOAD'       <-- OUTPUT: Executable library
+   ```
+   You should have an existing SRC, OBJ, and LOAD PDS (e.g., USER.SRC, USER.OBJ, USER.LOAD)
+
+2. Build & Run
+
+   Submit the JCL to compile all modules (PROC101, PROC30, HPSMF), link-edit them, and execute the engine:
+
+   Command: SUBMIT 'YOUR.PREFIX.JCL(JCLASM)'
+
+   Check Results:
+   Ensure all steps finished with RC=0000 or RC=0004.
+
+   The JSON output will be available in the JSONOUT DD (either directed to SYSOUT or the dataset defined in the configuration).
+
+
