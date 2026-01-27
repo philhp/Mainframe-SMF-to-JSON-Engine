@@ -7,7 +7,7 @@
 //*-------------------------------------------------------------------*
 //* CONFIGURATION
 //*-------------------------------------------------------------------*
-// SET OUTFILE='IBMUSER.SMF.OUT'
+// SET OUTFILE='IBMUSER.SMF.FILE'
 // SET MAN='SYS1.MAN2'
 //*-------------------------------------------------------------------*
 //* STEP 0: CLEANUP PREVIOUS OUTPUT FILE
@@ -28,6 +28,6 @@
 //             DCB=(RECFM=VBS,LRECL=32760)
 //SYSPRINT DD  SYSOUT=*
 //SYSIN    DD  *
-  INDD(DUMPIN,OPTIONS(DUMP))
-  OUTDD(DUMPOUT,TYPE(30,101))
+  INDD(DUMPIN,OPTIONS(ALL))
+  OUTDD(DUMPOUT,TYPE(30,101,102))
 /*

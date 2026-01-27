@@ -48,6 +48,14 @@ BOUCLE   GET   SMFFILE            * L'adresse du record arrive dans R1
          SR    R4,R4             * Nettoie R4
 *         IC    R4,5(,R2)        * Insert Character
          IC    R4,SMF30RTY      * Utilise le label macro (Offset+5)
+
+         CLI   SMF30RTY,101        
+         BE    ANALYSE
+         CLI   SMF30RTY,30        
+         BE    ANALYSE
+         B     BOUCLE         *Skip all records expect 101 and 30
+
+ANALYSE  DS    0H
 *-- Convertion au format EBCDIC         
 *-- Ex: si R4 = 65h, DOUBLE contiendra 000000000000101C
          CVD   R4,DOUBLE           * Binaire (R4) -> Décimal packé
@@ -106,7 +114,7 @@ BOUCLE   GET   SMFFILE            * L'adresse du record arrive dans R1
 * --- Aiguillage vers les routines ---
          LR    R1,R2
          CLI   5(R1),X'65'         * Est-ce du DB2 (101) ?
-         BNE   NEXT1
+         BNE   NO_101
 
          ST    R2,ADDR_SMF         * adresse du record
 *         LA    R3,JSON_REC         * On prend l'adresse de la zone
@@ -117,8 +125,10 @@ BOUCLE   GET   SMFFILE            * L'adresse du record arrive dans R1
          BASR  R14,R15     * 2. On saute dedans (R14 = retour)
          B     BOUCLE          
 
-NEXT1    CLI   5(R1),X'1E'         * Est-ce JOB (30) ?
-         BNE   NEXT2
+NO_101   CLI   5(R1),X'1E'         * Est-ce JOB (30) ?
+         BNE   NO_30
+         ST    R2,ADDR_SMF         * adresse du record
+         LA    R1,PARMLIST        * R1 pointe sur la liste (Std IBM)
 
          L     R15,=V(PROC_30)  *CALL SUBROUTINE with R1:Offset
          BASR  R14,R15     * 2. On saute dedans (R14 = retour)
@@ -126,7 +136,7 @@ NEXT1    CLI   5(R1),X'1E'         * Est-ce JOB (30) ?
 
          
 
-NEXT2    WTO   '}, '
+NO_30    WTO   '}, '
 
          B     BOUCLE
          

@@ -1,4 +1,4 @@
-* --- Définition des registres ---
+* --- Register definitions ---
 R0       EQU   0
 R1       EQU   1
 R2       EQU   2
@@ -19,116 +19,66 @@ R15      EQU   15
 PROC_101 CSECT   
 *         IFASMFR (30)
 * --- 1. MAPPING OFFICIEL DB2 ---
-         IFASMFR (30)   *structures de base communes aux records SMF
-         DSNDQWHS
-         DSNDQWHC    
-         DSNDQWAC
-*DSNB10.SDSNMACS         
-
+         IFASMFR (30)   * SMF Records structs
+         DSNDQWHS       * SMF Header Standard structs
+         DSNDQWHC       * SMF Header Correlation structs
+         DSNDQWAC       * SMF Accounting structs
+        
 PROC_101 CSECT
          BAKR  R14,0         
          LR    R12,R15        
          USING PROC_101,R12
 
-* --- DUMMY SECTION ---
-*JSON_MAP DSECT               
-*         COPY  MAPJSON       
-*PROC_101 CSECT              
-* -------------------------
 
-* --- R1 = adresse vers PARMLIST
-         L     R2,0(,R1)       * récupère ADDR_SMF
-*         L     R4,4(,R1)        * récupère JSON_REC
-*         USING JSON_MAP,R4
+* --- R1 = adress to PARMLIST
+         L     R2,0(,R1)       * get ADDR_SMF
 
          OPEN  (SNAPDCB,OUTPUT)
 
-* --- 1. TEST SUBTYPE AND EXTENDED HEADER FOR TYPE 101
-*         TM    4(R2),X'04'      * Test du bit 3 : Extended Header ?
-*         BNO   NOT_EXT          * Si le bit n'est pas à 1 
-*         WTO   '-'
-*         B     CHECKSUB
-         
-*NOT_EXT  WTO   '-'
+* --- 1. SELF DEFINING SECTION FOR VARIABLE LENGTH DATA ITEMS
 
-*CHECKSUB TM    4(R2),X'02'      * Test du bit 2 : Subtypes present ?
-*         BNO   NOTSUB          * Si le bit n'est pas à 1
-*         WTO   ' '
-*         B     STARTDB2
-*NOTSUB   WTO   '-'
-
-
-
-* --- IF NO SUBTYPE : PayLoad at Offset+18
-* --- IF SUBTYPE : PayLoad at Offset+24 (add SMFHDR_WID + SMFHDR_STP)
-* --- IF EXTENDED FOR DB2 trace : 
-* Offset 18 SMFHDR_WID : Subsystem identification
-* Offset 22 STF : Reserved
-* Offset 23 RI : Reserved
-* Offset 24 SEQ : Compression information
-*
-* --- Start Self definition section
-* --- Triplette  (32bits),Length (16bits),Nb of time(16bits)
-* Offest 28 Pointer to product section : 4 bytes
-* Offest 32 Length of product section : 2 bytes
-* Offset 34 1 bytes =0x01 if section exist 
-*
-* --- Start Product section Header Standard (QWHS)
-* Offset 36 Offest Pointer to data section #1
-*
-* --- Start Accounting Control (QWAC)
-
-
-* --- ACTIVATION DES CALQUES ---
-
-
-* Extended: Les triplettes commencent après le header de 36 octets
-STARTDB2 LA    R1,28(,R2)   * 1er triplette : Product section
+* Reading the self-defining section for variable-length data items
+STARTDB2 LA    R1,28(,R2)   * 1st : always Product section
          L     R3,0(,R1)    * R3=OFFSET of QWHS
-         ALR   R3,R2
+         ALR   R3,R2        * R3=Product Section
 * --- Header Correlation         
-         USING QWHS,R3      * Calque officiel DB2 pour le head
+         USING QWHS,R3      
 
-         LH    R1,QWHSIID     * Charge l'IFCID
-         CVD   R1,DOUBLE      *convert R5 to decimal packed
+         LH    R1,QWHSIID     * Load IFCID
+         CVD   R1,DOUBLE      * convert R5 to decimal packed
          UNPK  IFCIJSON(3),DOUBLE+6(2)
          OI    IFCIJSON+2,X'F0'  * Sign correction
          LA    R1,IFCIWTO           Load Address
          SVC   35
-*         LA    R4,QWHSSSID
 
-*         MVC   SIID(4),QWHSSSID     Move: Destination(Longueur), Src
-*         MVC   J_SSID,QWHSSSID
-*         LA    R1,WTOSIID           Load Address
-*         SVC   35
 
-* --- Affichage Hexa simplifié ---
-         L     R1,QWHSISEQ         * Charge la séquence (ex: 0000000A)
+* --- Show Hexadecimal ---
+         L     R1,QWHSISEQ         * Load Sequence
          ST    R1,TEMPVAL
          UNPK  HEXWORK(9),TEMPVAL(5) 
          NC    HEXWORK(8),MASK0F
          TR    HEXWORK(8),HEXTAB
-         MVC   SEQJSON(8),HEXWORK    * Copie les 8 digits dans le WTO
-         LA    R1,SEQWTO            * Adresse du WTO pour la séquence
+         MVC   SEQJSON(8),HEXWORK    * Copy 8 digits to WTO
+         LA    R1,SEQWTO            
          SVC   35
 
-         MVC   LOCJSON(16),QWHSLOCN * Copy 16 butes to WTO zone
-         LA    R1,LOCWTO        * Adresse du bloc message
-         SVC   35               * Write To Operator
+         MVC   LOCJSON(16),QWHSLOCN * Copy 16 bytes to WTO zone
+         LA    R1,LOCWTO        
+         SVC   35               
 
          MVC   NETDJSON(8),QWHSNID     * NetworkID ex: "NETD    "
-         LA    R1,NETDWTO        * Adresse du bloc message
-         SVC   35               * Write To Operator
+         LA    R1,NETDWTO        
+         SVC   35              
 
-         MVC   LUJSON(8),QWHSLUNM   * LU LogicalUnit Name "DBBGLU1 "
-         LA    R1,LUWTO        * Adresse du bloc message
-         SVC   35               * Write To Operator
+         MVC   LUJSON(8),QWHSLUNM   * LU LogicalUnit ex : "DBBGLU1 "
+         LA    R1,LUWTO        
+         SVC   35               
 
-         LH    R1,QWHSLEN       * Charge la longueur (2 octets) dans R4
-         AR    R3,R1            * Ajoute cette longueur à l'adresse de base R3
+         LH    R1,QWHSLEN    * Load lenght to R4
+         AR    R3,R1         * Add to R3
 
 * --- Header Correlation
-         USING QWHC,R3      * Calque officiel DB2 pour le head
+         USING QWHC,R3      
 
          MVC   CONNJSON(8),QWHCCN  * Connexion Name
          LA    R1,CONNWTO    
@@ -137,118 +87,117 @@ STARTDB2 LA    R1,28(,R2)   * 1er triplette : Product section
          LA    R1,PLANWTO    
          SVC   35   
 
-* --- Extraction de l'Auth ID (User) ---
-         MVC   AUTHJSON(8),QWHCAID    * Copie les 8 octets de l'UserID
-         LA    R1,AUTHWTO           * Prépare le WTO
+* --- Extraction of Auth ID (User) ---
+         MVC   AUTHJSON(8),QWHCAID    
+         LA    R1,AUTHWTO           
          SVC   35
          
-* --- Extraction du Correlation ID (Job Name / TSO ID) ---
-         MVC   CORRJSON(8),QWHCCV    * Copie les 12 octets (Job/Task)
-         LA    R1,CORRWTO           * Prépare le WTO
+* --- Extraction of Correlation ID (Job Name / TSO ID) ---
+         MVC   CORRJSON(8),QWHCCV    
+         LA    R1,CORRWTO           
          SVC   35
  
 * --- Extraction de l'User ID Distant (16 octets) ---
-         MVC   EUSRJSON(8),QWHCEUID    * Copie l'ID utilisateur final
-         LA    R1,EUSRWTO           * Prépare le WTO
+         MVC   EUSRJSON(8),QWHCEUID    
+         LA    R1,EUSRWTO          
          SVC   35
 
 
+* --- 2. 2nd DATA SECTION OF SELF DEFINING SECTION
 
-* --- 2eme triplette
-         LA    R1,36(,R2)   * 2eme triplette : Accounting sec
+         LA    R1,36(,R2)   * 2nd data section : Accounting sec
          L     R3,0(,R1)    * R3=OFFSET of QWAC
          ALR   R3,R2
 * --- Header Accounting         
-         USING QWAC,R3      * Calque officiel DB2 pour le head
+         USING QWAC,R3      
 
-* --- Extraction du temps CPU (Classe 1) ---
-         MVC   CPUBIN(8),QWACAJST     * Copie les 8 octets du STCK
-* --- Conversion des 4 premiers octets (les plus significatifs) ---
-         L     R1,CPUBIN            * Charge les 4 premiers octets
-         ST    R1,TEMPVAL           * Stocke pour conversion
+* --- Extraction CPU time ---
+         MVC   CPUBIN(8),QWACAJST     
+* --- Conversion of Most Significant Bytes (MSB) ---
+         L     R1,CPUBIN            
+         ST    R1,TEMPVAL           
          UNPK  HEXWORK(9),TEMPVAL(5)
          NC    HEXWORK(8),MASK0F
          TR    HEXWORK(8),HEXTAB
          MVC   CPUJSON(8),HEXWORK
-* --- Conversion des 4 octets suivants ---
-         L     R1,CPUBIN+4          * Charge les 4 octets de droite
+* --- Conversion of Less Significant Bytes (LSB) ---
+         L     R1,CPUBIN+4          
          ST    R1,TEMPVAL
          UNPK  HEXWORK(9),TEMPVAL(5)
          NC    HEXWORK(8),MASK0F
          TR    HEXWORK(8),HEXTAB
          MVC   CPUJSON2(8),HEXWORK
 
-* --- Envoi à la console ---
          LA    R1,CPUWTO
          SVC   35
 
-* --- Extraction de l'ELAPSED TIME ---
+* --- ELAPSED TIME Extraction ---
          MVC   CPUBIN(8),QWACASC   
-* --- Conversion simple des 4 octets du milieu (plus lisible) ---
-         L     R1,CPUBIN           * Partie haute
+* --- Conversion of Most Significant Bytes (MSB) ---
+         L     R1,CPUBIN           
          ST    R1,TEMPVAL
          UNPK  HEXWORK(9),TEMPVAL(5)
          NC    HEXWORK(8),MASK0F
          TR    HEXWORK(8),HEXTAB
          MVC   ELAPJSON(8),HEXWORK
-* --- Conversion simple des 4 octets de droit---
-         L     R1,CPUBIN+4           * Partie basse
+* --- Conversion of Less Significant Bytes (LSB) ---
+         L     R1,CPUBIN+4           
          ST    R1,TEMPVAL
          UNPK  HEXWORK(9),TEMPVAL(5)
          NC    HEXWORK(8),MASK0F
          TR    HEXWORK(8),HEXTAB
          MVC   ELAJSON2(8),HEXWORK         
-* --- Envoi à la console ---
+
          LA    R1,ELAPWTO
          SVC   35
 
-* 1. Extraction du TEMPS DE LATCH (QWACAWLH - 8 octets)
-         MVC   CPUBIN(8),QWACAWLH   * On récupère le STCK
-* --- Conversion simple des 4 octets poids fort
-         L     R1,CPUBIN            * On prend la partie haute
+* --- LATCH TIME Extraction 
+         MVC   CPUBIN(8),QWACAWLH   
+* --- Conversion of Most Significant Bytes (MSB) ---
+         L     R1,CPUBIN            
          ST    R1,TEMPVAL
          UNPK  HEXWORK(9),TEMPVAL(5)
          NC    HEXWORK(8),MASK0F
          TR    HEXWORK(8),HEXTAB
-         MVC   WAITJSON(8),HEXWORK   * Vers le WTO
-* --- Conversion simple des 4 octets poids faible
-         L     R1,CPUBIN+4           * Partie basse
+         MVC   WAITJSON(8),HEXWORK   
+* --- Conversion of Less Significant Bytes (LSB) ---
+         L     R1,CPUBIN+4           
          ST    R1,TEMPVAL
          UNPK  HEXWORK(9),TEMPVAL(5)
          NC    HEXWORK(8),MASK0F
          TR    HEXWORK(8),HEXTAB
          MVC   WAIJSON2(8),HEXWORK   
-* --- Envoi à la console ---
+
          LA    R1,WAITWTO
          SVC   35
 
 
-* 1. Extraction du TEMPS DE LATCH (QWACAWLH - 8 octets)
-         MVC   CPUBIN(8),QWACAWTI   * On récupère le STCK
-* --- Conversion simple des 4 octets poids fort
-         L     R1,CPUBIN            * On prend la partie haute
+* --- LATCH TIME Extraction 
+         MVC   CPUBIN(8),QWACAWTI   
+* --- Conversion of Most Significant Bytes (MSB) ---
+         L     R1,CPUBIN            
          ST    R1,TEMPVAL
          UNPK  HEXWORK(9),TEMPVAL(5)
          NC    HEXWORK(8),MASK0F
          TR    HEXWORK(8),HEXTAB
-         MVC   IOJSON(8),HEXWORK   * Vers le WTO
-* --- Conversion simple des 4 octets poids faible
-         L     R1,CPUBIN+4           * Partie basse
+         MVC   IOJSON(8),HEXWORK   
+* --- Conversion of Less Significant Bytes (LSB) ---
+         L     R1,CPUBIN+4           
          ST    R1,TEMPVAL
          UNPK  HEXWORK(9),TEMPVAL(5)
          NC    HEXWORK(8),MASK0F
          TR    HEXWORK(8),HEXTAB
          MVC   IOSON2(8),HEXWORK   
-* --- Envoi à la console ---
+
          LA    R1,IOWTO
          SVC   35
 
 
 
 
-         LLGH  R3,0(,R2)           * R3=(R1) en 16bits non signé
-         AR    R3,R2               * R3 = Adresse de fin
-         SNAP  DCB=SNAPDCB,ID=50,PDATA=REGS,STORAGE=((R2),(R3))        
+*         LLGH  R3,0(,R2)       * R3=(R1) en 16bits no signed
+*         AR    R3,R2           * R3 = Adresse de fin
+*         SNAP  DCB=SNAPDCB,ID=50,PDATA=REGS,STORAGE=((R2),(R3))        
 
 
 
@@ -256,7 +205,7 @@ STARTDB2 LA    R1,28(,R2)   * 1er triplette : Product section
          CLOSE (SNAPDCB)
          PR
 
-* --- Zone de données de la routine ---
+* --- DATA Zone ---
          DS    0D                * 64bits align
 CPUBIN   DS    D                 * Zone de 8 octets (Doubleword)         
 DOUBLE   DS    D
@@ -337,7 +286,7 @@ CPUWTO   DC    AL2(CPUEND-CPUWTO)
          DC    C'"db2_class2_cpu_time": "'
 CPUJSON  DC    CL8'        '
          DC    C'-'
-CPUJSON2 DC    CL8' '               * Partie basse du STCK         
+CPUJSON2 DC    CL8' '                       
          DC    C'",'
 CPUEND   EQU   *
 
@@ -346,7 +295,7 @@ ELAPWTO  DC    AL2(ELAPEND-ELAPWTO)
          DC    C'"db2_class2_elapsed_time": "'
 ELAPJSON DC    CL8'        '
          DC    C'-'
-ELAJSON2 DC    CL8' '               * Partie basse du STCK         
+ELAJSON2 DC    CL8' '                        
          DC    C'",'
 ELAPEND  EQU   *
 
@@ -355,7 +304,7 @@ WAITWTO  DC    AL2(WAITEND-WAITWTO)
          DC    C'"db2_latch_wait_time": "'
 WAITJSON DC    CL8'        '
          DC    C'-'
-WAIJSON2 DC    CL8' '               * Partie basse du STCK         
+WAIJSON2 DC    CL8' '                       
          DC    C'",'
 WAITEND  EQU   *
 
@@ -364,15 +313,9 @@ IOWTO    DC    AL2(IOEND-IOWTO)
          DC    C'"db2_io_wait_time": "'
 IOJSON   DC    CL8'        '
          DC    C'-'
-IOSON2   DC    CL8' '               * Partie basse du STCK         
+IOSON2   DC    CL8' '                        
          DC    C'" },'
 IOEND    EQU   *
-
-
-
-
-
-
 
 
 
@@ -384,16 +327,16 @@ SIID     DC    CL4' '           * SSID string (ex: DDBG)
 
 
 
-TEMPVAL  DS    F                    * Stockage temporaire 32 bits
-HEXWORK  DS    CL9                  * Zone de travail pour UNPK
+TEMPVAL  DS    F                    * 32 bits Temp stockage 
+HEXWORK  DS    CL9                  * working zone for UNPK
 
 * --- For Bin/Hexa convertion
-MASK0F   DC    8X'0F'               * 8 octets de 0F
-HEXTAB   DC    C'0123456789ABCDEF'  * Ta table de traduction
+MASK0F   DC    8X'0F'               * 8 bytes 0x0F
+HEXTAB   DC    C'0123456789ABCDEF'  * Convertion table
 
          DS    0F       --Aligne
-* --- LA DEFINITION DU DCB POUR LE SNAP (OBLIGATOIRE) ---
-* Attention : La virgule en fin de ligne et le 'X' en colonne 72
+
+* Warning : comma to cols number 72 
 SNAPDCB  DCB   DSORG=PS,MACRF=(W),DDNAME=SNAP,RECFM=VBA,               X
                LRECL=125,BLKSIZE=882
 
