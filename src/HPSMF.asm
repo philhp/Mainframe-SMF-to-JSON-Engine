@@ -1,4 +1,4 @@
-* --- Définition des registres ---
+* --- Register definitions ---
 R0       EQU   0
 R1       EQU   1
 R2       EQU   2
@@ -19,126 +19,118 @@ R15      EQU   15
 * COL 1  COL10 COL 16                                          COL 72
 *        |     |                                               |
 START    CSECT
-* --- GENERATION DES DSECT SMF ---
-         IFASMFR (30)
+         IFASMFR (30)      * SMF Records structs
 START    CSECT
 
          BAKR  R14,0        Branch And StacK Register(PUSH ALL)
          LR    R12,R15
          USING START,R12
 
-* --- 1. Déclarer les routines comme externes ---
+* --- External subroutines declaration ---
          EXTRN PROC_101
          EXTRN PROC_30         
 
-
-
          OPEN  (SMFFILE,INPUT)
 
-          WTO   '[ '
+         WTO   '[ '
 
-BOUCLE   GET   SMFFILE            * L'adresse du record arrive dans R1
-* R1 adresse du RDW
-         LR    R2,R1              * On sauve l'adresse de début
+LOOP     GET   SMFFILE            * Open SMF File
+         LR    R2,R1              * Save RDW
 
-* --- NOUVEAU : ACTIVATION DU CALQUE MACRO ---
-         USING SMF30RHD,R2       * R2 mappe maintenant le header std
+         USING SMF30RHD,R2
 
-* --- Traitement de RTY (Offset +5, longueur 1) ---
-         SR    R4,R4             * Nettoie R4
-*         IC    R4,5(,R2)        * Insert Character
-         IC    R4,SMF30RTY      * Utilise le label macro (Offset+5)
+* --- Reading SMF Type : RTY (Offset +5, size 1) ---
+         SR    R4,R4             * Clean R4
+         IC    R4,SMF30RTY      * Use SMF30RTY macro (Offset+5)
 
          CLI   SMF30RTY,101        
          BE    ANALYSE
          CLI   SMF30RTY,30        
          BE    ANALYSE
-         B     BOUCLE         *Skip all records expect 101 and 30
+         B     LOOP              *Skip all records expect 101 and 30
 
 ANALYSE  DS    0H
-*-- Convertion au format EBCDIC         
-*-- Ex: si R4 = 65h, DOUBLE contiendra 000000000000101C
-         CVD   R4,DOUBLE           * Binaire (R4) -> Décimal packé
-* -- UNPK Addr cible sur 3 octets max, 
-* si DOUBLE = 000000000000101C  DOUBLE+6=01 sur 2 octets soit 0101C
+
+* --- EBCDIC Convertion to decimal       
+* --- Ex: If R4 = X'65', DOUBLE will contain X'000000000000101C
+         CVD   R4,DOUBLE           * Binary (R4) -> Packed Decimal
          UNPK  RTYJSON(3),DOUBLE+6(2)
          OI    RTYJSON+2,X'F0'
 
-* --- Traitement de la DATE (Offset +10, longueur 4) ---
-* Format SMF : [SS][YY][DD][DF] -> 4 octets packés SS:Siecle
-         UNPK  DOUBLE(7),SMF30DTE     * Déballe 4 octets vers 7 octets
-* Résultat dans DOUBLE : F0 F0 FY FY FD FD FD CF (Le C final est le signe)
+* --- Date formatting and conversion ---
+* Format SMF : [CC][YY][DD][DF] -> 4 bytes packés CC:Century
+         UNPK  DOUBLE(7),SMF30DTE
+* Résult on DOUBLE : F0 F0 FY FY FD FD FD CF ( C is the signe )
          
-         MVC   DATEJSON(2),DOUBLE+2   * On prend l'année (YY)
-         MVI   DATEJSON+2,C'.'        * On place le point séparateur
-         MVC   DATEJSON+3(3),DOUBLE+4 * On prend les 3 chiffres du jour
+         MVC   DATEJSON(2),DOUBLE+2   * Store Year (YY)
+         MVI   DATEJSON+2,C'.'        * Store decimal point "."
+         MVC   DATEJSON+3(3),DOUBLE+4 * Store day : 3 digits
 
-* --- Traitement de TIME (Offset +6) ---
-         L     R5,SMF30TME         * Charge le binaire (00604A17)
-         SR    R4,R4               * Nettoie R4 (Paire R4-R5)
-* --- 1. Supprimer les centièmes ---
-         L     R9,=F'100'          * Diviseur
-         DR    R4,R9               * R5 = secondes, R4 = centièmes
-* --- 2. Extraire les Secondes ---
-         SR    R4,R4               * On prépare R4 pour la division
+* --- Time formatting and conversion ---
+         L     R5,SMF30TME         * Load time (binary)
+         SR    R4,R4               * Clear R4 for R4-R5 division pair
+* --- Clear Hundredths ---
+         L     R9,=F'100'          * Divisor
+         DR    R4,R9               * R5 = seconds, R4 = Hundredths
+* --- Extract seconds ---
+         SR    R4,R4               * Clear R4 for division
          L     R9,=F'60'
-         DR    R4,R9               * R5 = minutes totales, R4 = sec
-         CVD   R4,DOUBLE           * Convertit secondes en packé
-         UNPK  TIMEJSON+6(2),DOUBLE+6(2) * Stocke SS
+         DR    R4,R9               * R5 = Total minutes, R4 = seconds
+         CVD   R4,DOUBLE           * Convert seconds to packed
+         UNPK  TIMEJSON+6(2),DOUBLE+6(2) 
          OI    TIMEJSON+7,X'F0'
-* --- 3. Extraire les Minutes et Heures ---
+* --- Extract Minutes and Hours ---
          SR    R4,R4
-         DR    R4,R9               * R5 = Heures, R4 = Minutes <--- !!
+         DR    R4,R9               * R5 = Hours, R4 = Minutes
          
-         CVD   R4,DOUBLE           * Convertit minutes en packé
-         UNPK  TIMEJSON+3(2),DOUBLE+6(2) * Stocke MM
+         CVD   R4,DOUBLE           
+         UNPK  TIMEJSON+3(2),DOUBLE+6(2) 
          OI    TIMEJSON+4,X'F0'
          
-         CVD   R5,DOUBLE           * Convertit heures en packé
-         UNPK  TIMEJSON(2),DOUBLE+6(2)   * Stocke HH
+         CVD   R5,DOUBLE           
+         UNPK  TIMEJSON(2),DOUBLE+6(2) 
          OI    TIMEJSON+1,X'F0'         
 
-* --- Extraction du SID (Offset +14) ---
+* --- Extract SID (Offset +14) ---
 
          MVC   SIDJSON,SMF30SID
-* --- AFFICHAGE DU JSON ---
-         LA    R1,RTYWTO      * On pointe sur le header du messag
-         SVC   35               * Envoi à la console
-         LA    R1,SIDWTO      * On pointe sur le header du messag
-         SVC   35               * Envoi à la console
-         LA    R1,DATEWTO      * On pointe sur le header du messag
-         SVC   35               * Envoi à la console
-         LA    R1,TIMEWTO      * On pointe sur le header du messag
-         SVC   35               * Envoi à la console
+* --- SHOW JSON ---
+         LA    R1,RTYWTO      
+         SVC   35               
+         LA    R1,SIDWTO     
+         SVC   35             
+         LA    R1,DATEWTO     
+         SVC   35               
+         LA    R1,TIMEWTO     
+         SVC   35        
 
-* --- Aiguillage vers les routines ---
+* --- Dispatching to routines ---
          LR    R1,R2
-         CLI   5(R1),X'65'         * Est-ce du DB2 (101) ?
+         CLI   5(R1),X'65'         * Type 101 ?
          BNE   NO_101
 
-         ST    R2,ADDR_SMF         * adresse du record
-*         LA    R3,JSON_REC         * On prend l'adresse de la zone
-*         ST    R3,ADDR_JSN         * On la met dans la liste       
-         LA    R1,PARMLIST        * R1 pointe sur la liste (Std IBM)
+         ST    R2,ADDR_SMF         * Store SMF record pointer
+*         ST    R3,ADDR_JSN        * Store another pointer      
+         LA    R1,PARMLIST         * R1 : List pointer for subroutine
 
-         L     R15,=V(PROC_101)  *CALL SUBROUTINE with R1:Offset
-         BASR  R14,R15     * 2. On saute dedans (R14 = retour)
-         B     BOUCLE          
+         L     R15,=V(PROC_101)    * Call SUBROUTINE, R1:list pointer
+         BASR  R14,R15     
+         B     LOOP          
 
-NO_101   CLI   5(R1),X'1E'         * Est-ce JOB (30) ?
+NO_101   CLI   5(R1),X'1E'         * Type 30 ?
          BNE   NO_30
-         ST    R2,ADDR_SMF         * adresse du record
-         LA    R1,PARMLIST        * R1 pointe sur la liste (Std IBM)
+         ST    R2,ADDR_SMF         * Store SMF record pointer
+         LA    R1,PARMLIST         * R1 : List pointer for subroutine
 
-         L     R15,=V(PROC_30)  *CALL SUBROUTINE with R1:Offset
-         BASR  R14,R15     * 2. On saute dedans (R14 = retour)
-         B     BOUCLE          
+         L     R15,=V(PROC_30)     * Call SUBROUTINE, R1:list pointer
+         BASR  R14,R15    
+         B     LOOP          
 
          
 
 NO_30    WTO   '}, '
 
-         B     BOUCLE
+         B     LOOP
          
 
 EOF      CLOSE (SMFFILE)
@@ -150,14 +142,14 @@ EOF      CLOSE (SMFFILE)
 
          LTORG
 
-PARMLIST DS    0F                  * Début de la liste
-ADDR_SMF DS    A                   * Pointeur vers le Record SMF
-ADDR_JSN DS    A                   * Pointeur vers le JSON
+PARMLIST DS    0F                  * Start of List pointer
+ADDR_SMF DS    A                   * SMF pointer
+ADDR_JSN DS    A                   * Another pointer
 
-         DS    0D       --alignement 64bits le plus strict (8 octets)
+         DS    0D                  * Doubleword alignment : 64bits
 DOUBLE   DS    D
 
-         DS    0F                   --alignement 32bits
+         DS    0F                  * Fullword alignment : 32 bits
 RTYWTO   DC    AL2(RTYEND-RTYWTO)
          DC    XL2'0000'
          DC    C'{ "record_type": "'
@@ -182,11 +174,8 @@ TIMEWTO  DC    AL2(TIMEEND-TIMEWTO)
 TIMEJSON DC    CL8'HH:MM:SS'         
          DC    C'",'
 TIMEEND  EQU   *
-
-
-
       
-         DS    0F       --Aligne
+         DS    0F                 * Fullword alignment : 32 bits
 
 * --- Définitions des zones ---
 SMFFILE  DCB   DDNAME=SMFFILE,                                         X
@@ -194,14 +183,5 @@ SMFFILE  DCB   DDNAME=SMFFILE,                                         X
                MACRF=GL,                                               X
                EODAD=EOF
 
-* --- STRUCTURE POUR AFFICHER LE JSON ---
-*         DS    0F
-*WTO_JSON DS    0H
-*         DC    AL2(40)   * Longueur (à ajuster selon MAPJSON)
-*         DC    XL2'0000'
-* --- ZONE DE STOCKAGE JSON ---
-*         DS    0D                  * Alignement 64 bits
-*JSON_REC EQU   *              * Label pour le début
-*         COPY  MAPJSON      * L'assembleur injecte le texte ici
 
          END   START
