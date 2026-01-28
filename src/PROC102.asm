@@ -16,13 +16,13 @@ R13      EQU   13
 R14      EQU   14
 R15      EQU   15
 
-PROC_30  CSECT
+PROC_102 CSECT
          IFASMFR (30)   * SMF Records structs
-         
-PROC_30  CSECT
+         DSNDQW01
+PROC_102 CSECT
          BAKR  R14,0         
          LR    R12,R15        
-         USING PROC_30,R12
+         USING PROC_102,R12
 
 * --- R1 = adress to PARMLIST
          L     R2,0(,R1)       * get ADDR_SMF
@@ -30,7 +30,7 @@ PROC_30  CSECT
          OPEN  (SNAPDCB,OUTPUT)   
 
 
-         WTO   'ROUTINE 102 !'
+         WTO   'ROUTINE PROC_102 !'
 
          LLGH  R3,0(,R2)       * R3=(R1) en 16bits no signed
          AR    R3,R2           * R3 = Adresse de fin

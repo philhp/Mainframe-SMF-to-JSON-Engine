@@ -45,7 +45,7 @@ LOOP     GET   SMFFILE            * Open SMF File
 
          CLI   SMF30RTY,101        
          BE    ANALYSE
-         CLI   SMF30RTY,30        
+         CLI   SMF30RTY,102        
          BE    ANALYSE
          B     LOOP              *Skip all records expect 101 and 30
 
@@ -117,7 +117,17 @@ ANALYSE  DS    0H
          BASR  R14,R15     
          B     LOOP          
 
-NO_101   CLI   5(R1),X'1E'         * Type 30 ?
+NO_101   CLI   5(R1),X'66'         * Type 102 ?
+         BNE   NO_102
+         ST    R2,ADDR_SMF         * Store SMF record pointer
+         LA    R1,PARMLIST         * R1 : List pointer for subroutine
+
+         L     R15,=V(PROC_102)     * Call SUBROUTINE, R1:list pointer
+         BASR  R14,R15    
+         B     LOOP   
+
+
+NO_102   CLI   5(R1),X'1E'         * Type 30 ?
          BNE   NO_30
          ST    R2,ADDR_SMF         * Store SMF record pointer
          LA    R1,PARMLIST         * R1 : List pointer for subroutine
