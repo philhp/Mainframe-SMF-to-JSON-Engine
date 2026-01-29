@@ -18,6 +18,8 @@ R15      EQU   15
 
 PROC_102 CSECT
          IFASMFR (30)   * SMF Records structs
+         DSNDQWHS       * SMF Header Standard structs
+         DSNDQWHC       * SMF Header Correlation structs         
          DSNDQW01
 PROC_102 CSECT
          BAKR  R14,0         
@@ -29,9 +31,24 @@ PROC_102 CSECT
 
          OPEN  (SNAPDCB,OUTPUT)   
 
+* Reading the self-defining section for variable-length data items
+START102 LA    R1,28(,R2)   * ???? 1st : always Product section
+         L     R3,0(,R1)    * ???? R3=OFFSET of QWHS
+         ALR   R3,R2        * ???? R3=Product Section
+* --- Header Correlation         
+         USING QWHS,R3   
+
+         LH    R1,QWHSIID     * Load IFCID
+         CVD   R1,DOUBLE      * convert R5 to decimal packed
+         UNPK  IFCIJSON(3),DOUBLE+6(2)
+         OI    IFCIJSON+2,X'F0'  * Sign correction
+         LA    R1,IFCIWTO           Load Address
+         SVC   35
+
 
          WTO   'ROUTINE PROC_102 !'
 
+         LR    R4,R3
          LLGH  R3,0(,R2)       * R3=(R1) en 16bits no signed
          AR    R3,R2           * R3 = Adresse de fin
          SNAP  DCB=SNAPDCB,ID=50,PDATA=REGS,STORAGE=((R2),(R3))    
@@ -39,6 +56,19 @@ PROC_102 CSECT
          CLOSE (SNAPDCB)
 
          PR
+
+* --- DATA Zone ---
+         DS    0D                * 64bits align
+CPUBIN   DS    D                 * Zone de 8 octets (Doubleword)         
+DOUBLE   DS    D
+
+IFCIWTO  DC    AL2(IFCIEND-IFCIWTO)
+         DC    XL2'0000'
+         DC    C'"db2_ifcid": "'
+IFCIJSON DC    CL3'   '         
+         DC    C'",'
+IFCIEND  EQU   *
+
 
          DS    0F       --Aligne
 * Warning : comma to cols number 72 

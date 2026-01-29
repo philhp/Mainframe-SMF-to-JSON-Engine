@@ -192,8 +192,42 @@ STARTDB2 LA    R1,28(,R2)   * 1st : always Product section
          LA    R1,IOWTO
          SVC   35
 
+* --- ZiiP Extractions 
+         MVC   CPUBIN(8),QWACCLS1_zIIP   
+* --- Conversion of Most Significant Bytes (MSB) ---
+         L     R1,CPUBIN            
+         ST    R1,TEMPVAL
+         UNPK  HEXWORK(9),TEMPVAL(5)
+         NC    HEXWORK(8),MASK0F
+         TR    HEXWORK(8),HEXTAB
+         MVC   ZIP1JSON(8),HEXWORK  
 
+         LA    R1,ZIP1WTO
+         SVC   35
 
+         MVC   CPUBIN(8),QWACCLS2_zIIP   
+* --- Conversion of Most Significant Bytes (MSB) ---
+         L     R1,CPUBIN            
+         ST    R1,TEMPVAL
+         UNPK  HEXWORK(9),TEMPVAL(5)
+         NC    HEXWORK(8),MASK0F
+         TR    HEXWORK(8),HEXTAB
+         MVC   ZIP2JSON(8),HEXWORK  
+
+         LA    R1,ZIP2WTO
+         SVC   35
+
+         MVC   CPUBIN(8),QWACZIIP_ELIGIBLE   
+* --- Conversion of Most Significant Bytes (MSB) ---
+         L     R1,CPUBIN            
+         ST    R1,TEMPVAL
+         UNPK  HEXWORK(9),TEMPVAL(5)
+         NC    HEXWORK(8),MASK0F
+         TR    HEXWORK(8),HEXTAB
+         MVC   ZIP3JSON(8),HEXWORK  
+
+         LA    R1,ZIP3WTO
+         SVC   35
 
 *         LLGH  R3,0(,R2)       * R3=(R1) en 16bits no signed
 *         AR    R3,R2           * R3 = Adresse de fin
@@ -318,6 +352,26 @@ IOSON2   DC    CL8' '
 IOEND    EQU   *
 
 
+ZIP1WTO  DC    AL2(ZIP1END-ZIP1WTO)
+         DC    XL2'0000'
+         DC    C'"ziipCpuTotalTime": "'
+ZIP1JSON DC    CL8'        '         
+         DC    C'",'
+ZIP1END  EQU   *
+
+ZIP2WTO  DC    AL2(ZIP2END-ZIP2WTO)
+         DC    XL2'0000'
+         DC    C'"ziipCpuInDb2Time": "'
+ZIP2JSON DC    CL8'        '         
+         DC    C'",'
+ZIP2END  EQU   *
+
+ZIP3WTO  DC    AL2(ZIP3END-ZIP3WTO)
+         DC    XL2'0000'
+         DC    C'"ziipEligibleOnCpTime": "'
+ZIP3JSON DC    CL8'        '         
+         DC    C'",'
+ZIP3END  EQU   *
 
          DS    0F
 WTOSIID  DC    AL2(14)          * total length (4+6+4 )
